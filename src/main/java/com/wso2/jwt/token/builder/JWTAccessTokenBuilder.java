@@ -1,3 +1,21 @@
+/*
+ * Copyright (c) 2016, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
+ *
+ * WSO2 Inc. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied. See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 package com.wso2.jwt.token.builder;
 
 import com.nimbusds.jose.Algorithm;
@@ -9,15 +27,15 @@ import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.PlainJWT;
 import com.nimbusds.jwt.SignedJWT;
+import com.wso2.jwt.token.builder.internal.JWTAccessTokenBuilderDSComponent;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.oltu.oauth2.common.exception.OAuthSystemException;
 import org.wso2.carbon.base.MultitenantConstants;
+import org.wso2.carbon.context.PrivilegedCarbonContext;
 import org.wso2.carbon.core.util.KeyStoreManager;
 import org.wso2.carbon.identity.application.authentication.framework.model.AuthenticatedUser;
-import org.wso2.carbon.identity.application.common.model.Claim;
-import org.wso2.carbon.identity.application.common.model.ClaimMapping;
 import org.wso2.carbon.identity.core.util.IdentityTenantUtil;
 import org.wso2.carbon.identity.oauth.config.OAuthServerConfiguration;
 import org.wso2.carbon.identity.oauth2.IdentityOAuth2Exception;
@@ -25,12 +43,21 @@ import org.wso2.carbon.identity.oauth2.authz.OAuthAuthzReqMessageContext;
 import org.wso2.carbon.identity.oauth2.token.OAuthTokenReqMessageContext;
 import org.wso2.carbon.identity.oauth2.token.OauthTokenIssuerImpl;
 import org.wso2.carbon.identity.oauth2.util.OAuth2Util;
+import org.wso2.carbon.registry.core.Registry;
+import org.wso2.carbon.registry.core.Resource;
+import org.wso2.carbon.registry.core.exceptions.RegistryException;
+import org.wso2.carbon.user.api.UserStoreException;
+import org.wso2.carbon.user.api.UserStoreManager;
+import org.wso2.carbon.user.core.common.AbstractUserStoreManager;
+import org.wso2.carbon.user.core.service.RealmService;
 
 import java.security.Key;
 import java.security.interfaces.RSAPrivateKey;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -49,6 +76,7 @@ public class JWTAccessTokenBuilder extends OauthTokenIssuerImpl {
     private static final String SHA256_WITH_EC = "SHA256withEC";
     private static final String SHA384_WITH_EC = "SHA384withEC";
     private static final String SHA512_WITH_EC = "SHA512withEC";
+    private static final String SCOPE_PROPERTY_PATH = "/identity/config/climate-scopes.properties";
 
     private static final Log log = LogFactory.getLog(JWTAccessTokenBuilder.class);
     /**
@@ -343,13 +371,49 @@ public class JWTAccessTokenBuilder extends OauthTokenIssuerImpl {
     }
 
     private void addUserClaims(JWTClaimsSet jwtClaimsSet, AuthenticatedUser user) {
-        for (Map.Entry<ClaimMapping, String> entry : user.getUserAttributes().entrySet()) {
-            ClaimMapping claimMapping = entry.getKey();
-            Claim claim = claimMapping.getLocalClaim();
-            if (claim != null && Constants.CUSTOMER_ID_CLAIM_URI.equalsIgnoreCase(claim.getClaimUri())) {
-                jwtClaimsSet.setClaim(Constants.CUSTOMER_ID_CLAIM_URI, entry.getValue());
+        user.getUserStoreDomain();
+        RealmService realmService = JWTAccessTokenBuilderDSComponent.getRealmService();
+        int tenantId = PrivilegedCarbonContext.getThreadLocalCarbonContext().getTenantId();
+        try {
+            UserStoreManager userStore = realmService.getTenantUserRealm(tenantId).getUserStoreManager();
+            UserStoreManager secUserStoreManager = null;
+            if (userStore instanceof AbstractUserStoreManager) {
+                secUserStoreManager = ((AbstractUserStoreManager) userStore)
+                        .getSecondaryUserStoreManager(user.getUserStoreDomain());
+                String climateId = secUserStoreManager.getUserClaimValue(
+                        user.getAuthenticatedSubjectIdentifier(), Constants.CUSTOMER_ID_CLAIM_URI, null);
+                jwtClaimsSet.setClaim(Constants.CUSTOMER_ID_CLAIM_URI, climateId);
             }
+
+
+        } catch (UserStoreException e) {
+            e.printStackTrace();
         }
+    }
+
+    /**
+     * this method will return the scopes allowed to a client as a hash map.
+     * @return
+     */
+    private Map<String, List<String>> getScopesMap() {
+        Map<String, List<String>> scopeMap = new HashMap<String, List<String>>();
+        int tenantId = PrivilegedCarbonContext.getThreadLocalCarbonContext().getTenantId();
+        try {
+            Registry registry = JWTAccessTokenBuilderDSComponent.getRegistryService().
+                    getConfigSystemRegistry(tenantId);
+            if (registry.resourceExists(SCOPE_PROPERTY_PATH)) {
+                Resource resource = registry.get(SCOPE_PROPERTY_PATH);
+                java.util.Properties properties = resource.getProperties();
+                for (final Map.Entry<Object, Object> entry : properties.entrySet()) {
+                    List<String> scopes = Arrays.asList(((String) entry.getValue()).split(","));
+                    scopeMap.put((String) entry.getKey(), scopes);
+                }
+
+            }
+        } catch (RegistryException e) {
+            e.printStackTrace();
+        }
+        return scopeMap;
     }
 
 }

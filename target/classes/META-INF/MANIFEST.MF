@@ -1,0 +1,19 @@
+Manifest-Version: 1.0
+Bundle-SymbolicName: JWTAccessTokenBuilder
+Built-By: nuwandi
+Bundle-ManifestVersion: 2
+Bnd-LastModified: 1495978697222
+Import-Package: org.wso2.carbon.identity.application.authentication.fr
+ amework.model;version="5.7";resolution:=optional
+Service-Component: OSGI-INF/serviceComponents.xml
+DynamicImport-Package: *
+Tool: Bnd-0.0.238
+Export-Package: com.wso2.jwt.token.builder;uses:="org.wso2.carbon.iden
+ tity.application.authentication.framework.model"
+Bundle-Name: JWTAccessTokenBuilder
+Bundle-Version: 1.0.0
+Private-Package: com.wso2.jwt.token.builder.internal
+Ignore-Package: com.wso2.jwt.token.builder.internal
+Created-By: Apache Maven Bundle Plugin
+Build-Jdk: 1.8.0_71
+

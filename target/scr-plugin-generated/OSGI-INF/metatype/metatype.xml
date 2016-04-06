@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?><metatype:MetaData xmlns:metatype="http://www.osgi.org/xmlns/metatype/v1.0.0" localization="OSGI-INF/metatype/metatype">
+    <OCD id="carbon.custom.claim.handler.dscomponent" name="%carbon.custom.claim.handler.dscomponent.name" description="%carbon.custom.claim.handler.dscomponent.description"/>
+    <Designate pid="carbon.custom.claim.handler.dscomponent">
+        <Object ocdref="carbon.custom.claim.handler.dscomponent"/>
+    </Designate>
+</metatype:MetaData>
